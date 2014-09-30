@@ -473,7 +473,7 @@ static bool open_the_device()
    dev->rLock();
    Dmsg1(200, "Opening device %s\n", dcr->VolumeName);
    if (!dev->open(dcr, OPEN_READ_WRITE)) {
-      Emsg1(M_FATAL, 0, _("dev open failed: %s\n"), dev->print_errmsg());
+      Emsg1(M_FATAL, 0, _("dev open failed: %s\n"), dev->errmsg);
       ok = false;
       goto bail_out;
    }
@@ -861,7 +861,8 @@ static bool re_read_block_test()
    }
    Pmsg0(0, _("Backspace record OK.\n"));
    if (!dcr->read_block_from_dev(NO_BLOCK_NUMBER_CHECK)) {
-      Pmsg1(0, _("Read block failed! ERR=%s\n"), dev->print_errmsg());
+      berrno be;
+      Pmsg1(0, _("Read block failed! ERR=%s\n"), be.bstrerror(dev->dev_errno));
       goto bail_out;
    }
    memset(rec->data, 0, rec->data_len);
@@ -1230,13 +1231,14 @@ static bool write_read_test()
    for (i=1; i<=2*num_recs; i++) {
 read_again:
       if (!dcr->read_block_from_dev(NO_BLOCK_NUMBER_CHECK)) {
+         berrno be;
          if (dev->at_eof()) {
             Pmsg0(-1, _("Got EOF on tape.\n"));
             if (i == num_recs+1) {
                goto read_again;
             }
          }
-         Pmsg2(0, _("Read block %d failed! ERR=%s\n"), i, dev->print_errmsg());
+         Pmsg2(0, _("Read block %d failed! ERR=%s\n"), i, be.bstrerror(dev->dev_errno));
          goto bail_out;
       }
       memset(rec->data, 0, rec->data_len);
@@ -1348,6 +1350,7 @@ static bool position_test()
       }
 read_again:
       if (!dcr->read_block_from_dev(NO_BLOCK_NUMBER_CHECK)) {
+         berrno be;
          if (dev->at_eof()) {
             Pmsg0(-1, _("Got EOF on tape.\n"));
             if (!got_eof) {
@@ -1356,7 +1359,7 @@ read_again:
             }
          }
          Pmsg4(0, _("Read block %d failed! file=%d blk=%d. ERR=%s\n\n"),
-            recno, file, blk, dev->print_errmsg());
+            recno, file, blk, be.bstrerror(dev->dev_errno));
          Pmsg0(0, _("This may be because the tape drive block size is not\n"
                     " set to variable blocking as normally used by Bareos.\n"
                     " Please see the Tape Testing chapter in the manual and \n"
@@ -2097,7 +2100,7 @@ static void scan_blocks()
             printf(_("Short block read.\n"));
             continue;
          }
-         printf(_("Error reading block. ERR=%s\n"), dev->print_errmsg());
+         printf(_("Error reading block. ERR=%s\n"), dev->bstrerror());
          goto bail_out;
       }
       if (block->block_len != block_size) {
@@ -2537,7 +2540,7 @@ static bool do_unfill()
    dev->close(dcr);
    dev->num_writers = 0;
    if (!acquire_device_for_read(dcr)) {
-      Pmsg1(-1, "%s", dev->print_errmsg());
+      Pmsg1(-1, "%s", dev->errmsg);
       goto bail_out;
    }
    /*
@@ -2562,7 +2565,7 @@ static bool do_unfill()
    }
    Pmsg1(-1, _("Reading block %u.\n"), last_block_num);
    if (!dcr->read_block_from_device(NO_BLOCK_NUMBER_CHECK)) {
-      Pmsg1(-1, _("Error reading block: ERR=%s\n"), dev->print_errmsg());
+      Pmsg1(-1, _("Error reading block: ERR=%s\n"), dev->bstrerror());
       goto bail_out;
    }
    if (compare_blocks(last_block, block)) {
@@ -2600,7 +2603,7 @@ static bool do_unfill()
 
    dev->clear_read();
    if (!acquire_device_for_read(dcr)) {
-      Pmsg1(-1, "%s", dev->print_errmsg());
+      Pmsg1(-1, "%s", dev->errmsg);
       goto bail_out;
    }
 
@@ -2614,7 +2617,7 @@ static bool do_unfill()
    }
    Pmsg1(-1, _("Reading block %d.\n"), dev->block_num);
    if (!dcr->read_block_from_device(NO_BLOCK_NUMBER_CHECK)) {
-      Pmsg1(-1, _("Error reading block: ERR=%s\n"), dev->print_errmsg());
+      Pmsg1(-1, _("Error reading block: ERR=%s\n"), dev->bstrerror());
       goto bail_out;
    }
    if (compare_blocks(first_block, block)) {
@@ -2630,7 +2633,7 @@ static bool do_unfill()
    }
    Pmsg1(-1, _("Reading block %d.\n"), dev->block_num);
    if (!dcr->read_block_from_device(NO_BLOCK_NUMBER_CHECK)) {
-      Pmsg1(-1, _("Error reading block: ERR=%s\n"), dev->print_errmsg());
+      Pmsg1(-1, _("Error reading block: ERR=%s\n"), dev->bstrerror());
       goto bail_out;
    }
    if (compare_blocks(last_block, block)) {
@@ -3037,7 +3040,7 @@ bool BTAPE_DCR::dir_ask_sysop_to_mount_volume(int mode)
    if (VolumeName[0] == 0) {
       return dir_ask_sysop_to_create_appendable_volume();
    }
-   Pmsg1(-1, "%s", dev->print_errmsg());   /* print reason */
+   Pmsg1(-1, "%s", dev->errmsg);           /* print reason */
 
    if (VolumeName[0] == 0 || bstrcmp(VolumeName, "TestVolume2")) {
       fprintf(stderr,
